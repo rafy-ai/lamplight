@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lamplight">
+<meta name="theme-color" content="#111111">
+<title>Lamplight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Cutive+Mono&family=IBM+Plex+Mono:wght@400;500&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+@property --lx { syntax: '<length>'; inherits: true; initial-value: 50vw; }
+@property --ly { syntax: '<length>'; inherits: true; initial-value: 40vh; }
+:root{
+  --paper:#dfe6f0; --ink:#1f2023; --lamp:255,214,160; --glow:.55; --lr:260px; --shade:.8;
+  --font:'Courier Prime','Courier New',monospace; --size:19px;
+  --ui:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --panel:rgba(18,17,16,.86); --panel-ink:#efe6d6; --muted:#a59c8d; --accent:#e2a65a; --guide:#b8332c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);transition:background .4s}
+body{font-family:var(--ui);-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+
+/* ---------- page ---------- */
+#room{position:fixed;inset:0;cursor:text}
+#page{position:absolute;left:50%;top:0;width:min(66ch,calc(100vw - 40px));font-family:var(--font);font-size:var(--size);
+  line-height:1.75;transform:translate(-50%,40vh);transition:transform .18s ease-out;padding-bottom:60vh}
+#text{white-space:pre-wrap;overflow-wrap:break-word;margin:0;color:var(--ink);text-shadow:0 0 .4px var(--ink)}
+#caret{display:inline-block;width:0}
+#hint{opacity:.35;font-style:italic;pointer-events:none}
+#lamp{position:fixed;inset:0;pointer-events:none;transition:--lx .18s ease-out,--ly .18s ease-out;
+  background:
+   radial-gradient(circle calc(var(--lr)*.9) at var(--lx) var(--ly),rgba(var(--lamp),var(--glow)) 0%,rgba(var(--lamp),0) 100%),
+   radial-gradient(circle at var(--lx) var(--ly),rgba(6,6,9,0) 0,rgba(6,6,9,.12) var(--lr),rgba(6,6,9,var(--shade)) calc(var(--lr)*2.6));
+  mix-blend-mode:normal}
+#glowAdd{position:fixed;inset:0;pointer-events:none;mix-blend-mode:soft-light;transition:--lx .18s ease-out,--ly .18s ease-out;
+  background:radial-gradient(circle calc(var(--lr)*.7) at var(--lx) var(--ly),rgba(var(--lamp),.9),rgba(var(--lamp),0))}
+#guide{position:fixed;left:0;right:0;height:1px;background:var(--guide);opacity:.55;pointer-events:none;transition:top .18s ease-out}
+#pill{position:fixed;width:22px;height:9px;margin-left:-4px;border-radius:6px;background:rgba(255,255,255,.55);
+  border:1px solid rgba(var(--lamp),.9);box-shadow:0 0 8px rgba(var(--lamp),.9);pointer-events:none;transition:left .08s,top .18s ease-out}
+body.noguide #guide,body.noguide #pill{display:none}
+#ta{position:fixed;width:2px;height:1.5em;opacity:0;border:0;padding:0;resize:none;font-size:16px;caret-color:transparent;background:transparent;color:transparent}
+
+/* ---------- sprint hairline ---------- */
+#hair{position:fixed;top:0;left:0;height:1px;width:0;background:rgb(var(--lamp));box-shadow:0 0 6px 1px rgba(var(--lamp),.9),0 0 18px rgba(var(--lamp),.6);pointer-events:none;transition:width .5s linear}
+
+/* ---------- menu ---------- */
+#menu{position:fixed;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:4px;border-radius:999px;
+  background:var(--panel);backdrop-filter:blur(8px);color:var(--panel-ink);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  transition:opacity .6s,transform .6s;z-index:10;max-width:calc(100vw - 16px);overflow-x:auto;scrollbar-width:none}
+#menu button{background:none;border:0;padding:7px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
+#menu button:hover,#menu button.on{background:rgba(255,255,255,.1);color:var(--accent)}
+#menu #allInBtn{border:1px solid rgba(255,255,255,.18);margin-left:4px}
+#menu #allInBtn.active{background:var(--accent);color:#1b1408;border-color:var(--accent)}
+#syncStatus{color:var(--muted);font-size:11.5px}
+#syncStatus.err{color:#ff8a7a}
+.steps{margin:0 0 10px;padding-left:18px;color:var(--muted);font-size:11.5px;line-height:1.6}
+.steps b{color:var(--panel-ink);font-weight:500}
+.panel{position:fixed;top:60px;left:50%;transform:translateX(-50%);width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 84px);overflow:auto;
+  background:var(--panel);backdrop-filter:blur(10px);color:var(--panel-ink);border-radius:14px;padding:18px;font-size:13px;z-index:11;
+  box-shadow:0 20px 60px rgba(0,0,0,.45);transition:opacity .4s;display:none}
+.panel.open{display:block}
+.panel h3{margin:0 0 12px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.panel h3:not(:first-child){margin-top:20px}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:42px;height:42px;border-radius:8px;border:2px solid transparent;cursor:pointer;position:relative}
+.sw.on{border-color:var(--accent)}
+.sw span{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--muted);white-space:nowrap}
+.swatches{margin-bottom:16px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}
+.row label{flex:1;min-width:110px}
+input[type=range]{flex:1.4;accent-color:var(--accent)}
+select,input[type=text],input[type=password],input[type=number],input[type=search]{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 9px;outline:none}
+select:focus,input:focus{border-color:var(--accent)}
+select option{background:#1c1a18}
+.btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:#1b1408;border-color:var(--accent)}
+.btn.primary:hover{color:#1b1408;filter:brightness(1.08)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.toggle{display:flex;align-items:center;justify-content:space-between;margin:8px 0;cursor:pointer}
+.toggle input{accent-color:var(--accent);width:18px;height:18px}
+.note-small{color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:6px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:none;cursor:pointer}
+.chip.on{background:var(--accent);color:#1b1408;border-color:var(--accent)}
+
+/* library */
+#libStats{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-bottom:12px}
+#noteTitle{width:100%;font-size:15px;margin-bottom:8px}
+.folder{margin-top:12px}
+.fhead{display:flex;align-items:center;gap:4px}
+.fhead .fname{flex:1;text-align:left;background:none;border:0;cursor:pointer;padding:5px 0;font-weight:500;color:var(--panel-ink);font-size:13px}
+.fhead .fname small{color:var(--muted);font-weight:400}
+.ico{background:none;border:0;color:var(--muted);cursor:pointer;padding:3px 7px;border-radius:6px;font-size:13px}
+.ico:hover{color:var(--accent);background:rgba(255,255,255,.07)}
+.folder ul{list-style:none;margin:2px 0 0;padding:0 0 0 12px;border-left:1px solid rgba(255,255,255,.08)}
+.folder.closed ul{display:none}
+.note{display:flex;align-items:center;gap:4px;border-radius:8px}
+.note:hover{background:rgba(255,255,255,.05)}
+.note.cur{background:rgba(226,166,90,.14)}
+.note .nt{flex:1;text-align:left;background:none;border:0;cursor:pointer;padding:6px 6px;min-width:0}
+.note .nt b{display:block;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note .nt small{color:var(--muted);font-size:10.5px}
+.note select{padding:3px 4px;font-size:11px;max-width:92px}
+.empty{color:var(--muted);font-size:11px;padding:4px 6px}
+
+/* HUD */
+.hud{position:fixed;bottom:14px;font-size:11px;letter-spacing:.06em;color:var(--panel-ink);background:var(--panel);padding:6px 12px;border-radius:999px;
+  transition:opacity .6s;z-index:9;white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+#hudL{left:14px}#hudR{right:14px}
+#hudL{cursor:pointer}
+body.typing #menu{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(-8px)}
+body.typing .hud{opacity:.28}
+body.typing .panel{opacity:0;pointer-events:none}
+#toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:var(--panel);color:var(--panel-ink);padding:10px 16px;border-radius:10px;font-size:12px;
+  opacity:0;transition:opacity .4s;pointer-events:none;z-index:20}
+#toast.show{opacity:1}
+#print{display:none}
+
+@media (max-width:560px){ .hud{max-width:44vw} #menu{font-size:10px;letter-spacing:.03em} #menu button{padding:7px 7px} }
+@media print{
+  @page{margin:22mm}
+  html,body{height:auto;overflow:visible;background:#fff!important}
+  body>*:not(#print){display:none!important}
+  #print{display:block;font-family:var(--font);font-size:12pt;line-height:1.7;color:#111;white-space:pre-wrap;overflow-wrap:break-word}
+  #print h1{font-size:15pt;font-weight:700;margin:0 0 18pt;white-space:normal}
+}
+</style>
+</head>
+<body>
+<div id="room">
+  <div id="page"><pre id="text"></pre></div>
+</div>
+<div id="lamp"></div>
+<div id="glowAdd"></div>
+<div id="guide"></div>
+<div id="pill"></div>
+<div id="hair"></div>
+<textarea id="ta" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" aria-label="Typewriter page"></textarea>
+
+<nav id="menu">
+  <button data-panel="pPage">Page</button>
+  <button data-panel="pLamp">Lamp &amp; Sound</button>
+  <button data-panel="pSprint">Sprint</button>
+  <button data-panel="pLib">Library</button>
+  <button data-panel="pKeep">Keep</button>
+  <button id="allInBtn" title="All In: no backspace, no going back">All In</button>
+</nav>
+
+<!-- PAGE -->
+<section class="panel" id="pPage">
+  <h3>Paper</h3><div class="swatches" id="papers"></div>
+  <h3>Ink</h3><div class="swatches" id="inks"></div>
+  <h3>Typeface</h3>
+  <div class="row"><select id="font" style="flex:1"></select></div>
+  <div class="row"><label>Type size</label><input type="range" id="size" min="14" max="28" step="1"></div>
+  <h3>Rules</h3>
+  <label class="toggle">All In (no backspace, no undo, no going back) <input type="checkbox" id="noBack"></label>
+  <p class="note-small" style="margin-top:0">When All In is off you can backspace, undo, and use the arrow keys to move the cursor.</p>
+  <label class="toggle">Red type guide <input type="checkbox" id="guideOn"></label>
+</section>
+
+<!-- LAMP -->
+<section class="panel" id="pLamp">
+  <h3>Lamp</h3>
+  <div class="row"><label>Warmth</label><input type="range" id="warmth" min="0" max="100"></div>
+  <div class="row"><label>Glow</label><input type="range" id="glow" min="0" max="100"></div>
+  <div class="row"><label>Pool size</label><input type="range" id="lampSize" min="140" max="520"></div>
+  <div class="row"><label>Room darkness</label><input type="range" id="dark" min="0" max="100"></div>
+  <h3>Sound</h3>
+  <label class="toggle">Keystrokes &amp; carriage return <input type="checkbox" id="soundOn"></label>
+  <label class="toggle">Margin bell <input type="checkbox" id="bellOn"></label>
+  <div class="row"><label>Volume</label><input type="range" id="vol" min="0" max="100"></div>
+  <div class="row"><button class="btn" id="testSound">Test sounds</button></div>
+</section>
+
+<!-- SPRINT -->
+<section class="panel" id="pSprint">
+  <h3>Writing sprint</h3>
+  <div class="chips" id="durs"></div>
+  <div class="row" style="margin-top:14px"><label>Word goal (optional)</label><input type="number" id="goal" min="0" step="50" placeholder="e.g. 500" style="width:110px"></div>
+  <div class="row"><button class="btn primary" id="sprintBtn">Start sprint</button><span id="sprintInfo" class="note-small" style="margin:0"></span></div>
+  <p class="note-small">A hairline of lamplight crawls across the top of the screen as time passes. The bell rings when it's done.</p>
+</section>
+
+<!-- LIBRARY -->
+<section class="panel" id="pLib">
+  <div id="libStats"></div>
+  <input type="text" id="noteTitle" placeholder="Title of this page">
+  <div class="grid2"><button class="btn" data-act="newNote">+ New page</button><button class="btn" data-act="newFolder">+ New folder</button></div>
+  <div class="row"><input type="search" id="libSearch" placeholder="Search titles &amp; text…" style="flex:1"></div>
+  <div id="libList"></div>
+</section>
+
+<!-- KEEP -->
+<section class="panel" id="pKeep">
+  <h3>Export this page</h3>
+  <div class="grid2">
+    <button class="btn" id="exPng">Typewritten PNG</button>
+    <button class="btn" id="exPdf">PDF</button>
+    <button class="btn" id="exTxt">.txt</button>
+    <button class="btn" id="exMd">.md</button>
+  </div>
+  <h3>Backup everything</h3>
+  <div class="grid2">
+    <button class="btn" id="backup">Download backup</button>
+    <button class="btn" id="restoreBtn">Restore backup</button>
+  </div>
+  <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+  <h3>Sync between devices</h3>
+  <div id="syncSetup">
+    <ol class="steps">
+      <li>On github.com go to <b>Settings → Developer settings → Personal access tokens → Tokens (classic)</b>.</li>
+      <li><b>Generate new token (classic)</b>: tick only <b>gist</b>, set expiration to <b>No expiration</b>, then copy it.</li>
+      <li>Paste it below on each device (laptop and phone).</li>
+    </ol>
+    <div class="row"><input type="password" id="tokenIn" placeholder="ghp_…" style="flex:1" autocomplete="off"><button class="btn primary" id="syncConnect">Connect</button></div>
+  </div>
+  <div id="syncOn" hidden>
+    <div class="row"><span id="syncStatus">Not synced yet</span></div>
+    <div class="grid2"><button class="btn" id="syncNowBtn">Sync now</button><button class="btn" id="syncDisconnect">Disconnect</button></div>
+  </div>
+  <p class="note-small">Pages save in this browser automatically. Turn on sync below to share them with your phone, and download a backup now and then anyway. PDF opens the print dialog, where you pick "Save as PDF".</p>
+</section>
+
+<div class="hud" id="hudL" title="Open library"></div>
+<div class="hud" id="hudR"></div>
+<div id="toast"></div>
+<div id="print"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const root = document.documentElement;
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const countWords = t => { const m = t.match(/[^\s]+/g); return m ? m.length : 0; };
+const fmt = n => n.toLocaleString();
+const today = () => new Date().toISOString().slice(0, 10);
+const shortDate = ts => new Date(ts).toLocaleDateString(undefined, {month:'short', day:'numeric'});
+
+const LS_DATA = 'lamplight.data.v1', LS_SET = 'lamplight.settings.v1';
+function load(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } }
+let warnedSave = false;
+function store(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+  catch(e){ if(!warnedSave){ toast('Could not save. Browser storage is full or blocked. Download a backup from Keep.'); warnedSave = true; } return false; } }
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+
+/* ---------------- options ---------------- */
+const PAPERS = [
+  {id:'moon',  name:'Moonlit', bg:'#dfe6f0'},
+  {id:'ivory', name:'Ivory',   bg:'#f1ead9'},
+  {id:'onion', name:'Onionskin', bg:'#ebeae3'},
+  {id:'kraft', name:'Kraft',   bg:'#d6c29e'},
+  {id:'night', name:'Night',   bg:'#1b1d22', dark:true},
+];
+const INKS = [
+  {id:'carbon', name:'Carbon', c:'#1f2023'},
+  {id:'navy',   name:'Navy',   c:'#1f2f58'},
+  {id:'sepia',  name:'Sepia',  c:'#5a3b22'},
+  {id:'ribbon', name:'Red ribbon', c:'#9b2420'},
+  {id:'chalk',  name:'Chalk',  c:'#e4dfd2'},
+];
+const FONTS = [
+  ['Courier Prime', "'Courier Prime','Courier New',monospace"],
+  ['Special Elite', "'Special Elite','Courier New',monospace"],
+  ['Cutive Mono',   "'Cutive Mono','Courier New',monospace"],
+  ['IBM Plex Mono', "'IBM Plex Mono','Courier New',monospace"],
+  ['Courier New',   "'Courier New',Courier,monospace"],
+];
+const DEF = {paper:'moon', ink:'carbon', font:'Courier Prime', size:19, noBackspace:true, guide:true,
+  warmth:62, glow:55, lampSize:270, dark:78, sound:true, bell:true, vol:65, collapsed:[], sprintMin:25};
+const S = Object.assign({}, DEF, load(LS_SET, {}));
+const saveSettings = () => store(LS_SET, S);
+
+/* ---------------- data ---------------- */
+let D = load(LS_DATA, null);
+if(!D || !Array.isArray(D.folders) || !Array.isArray(D.notes)){
+  const f = {id:uid(), name:'Journal'};
+  const n = {id:uid(), folderId:f.id, title:'First page', text:'', created:Date.now(), updated:Date.now()};
+  D = {folders:[f], notes:[n], currentId:n.id, daily:{}};
+}
+function repairData(){
+  D.daily = D.daily || {}; D.deleted = D.deleted || {};
+  if(!D.folders.length) D.folders.push({id:uid(), name:'Journal', updated:Date.now()});
+  if(!D.notes.find(n => n.id === D.currentId)){
+    if(!D.notes.length) D.notes.push(makeNote(D.folders[0].id));
+    D.currentId = [...D.notes].sort((a,b) => b.updated - a.updated)[0].id;
+  }
+}
+repairData();
+function makeNote(folderId){
+  const d = new Date();
+  return {id:uid(), folderId, title:'Untitled, ' + d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}),
+    text:'', created:Date.now(), updated:Date.now()};
+}
+const cur = () => D.notes.find(n => n.id === D.currentId);
+const folderOf = n => D.folders.find(f => f.id === n.folderId) || D.folders[0];
+let saveT = 0;
+const saveData = (now, fromSync) => {
+  clearTimeout(saveT); if(now) store(LS_DATA, D); else saveT = setTimeout(() => store(LS_DATA, D), 350);
+  if(!fromSync) markDirty();
+};
+addEventListener('beforeunload', () => store(LS_DATA, D));
+document.addEventListener('visibilitychange', () => { if(document.hidden) store(LS_DATA, D); });
+
+/* ---------------- elements ---------------- */
+const page = $('#page'), textEl = $('#text'), ta = $('#ta');
+const textNode = document.createTextNode('');
+const caret = document.createElement('span'); caret.id = 'caret'; caret.textContent = '​';
+const hint = document.createElement('span'); hint.id = 'hint'; hint.textContent = 'Begin. The page is listening.';
+const afterNode = document.createTextNode('');
+textEl.append(textNode, caret, afterNode);
+
+/* ---------------- audio ---------------- */
+let ac = null, noiseBuf = null, master = null;
+function audio(){
+  if(!ac){
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain(); master.connect(ac.destination);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate * .5, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    } catch(e){ return null; }
+  }
+  if(ac.state === 'suspended') ac.resume();
+  master.gain.value = (S.vol/100) * 0.9;
+  return ac;
+}
+function burst(t, {f=2200, q=1.2, g=.5, dur=.035, type='bandpass'}={}){
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+  const gn = ac.createGain(); gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0008, t + dur);
+  s.connect(fl).connect(gn).connect(master); s.start(t, Math.random()*.4); s.stop(t + dur + .02);
+}
+function thump(t, f0=150, f1=55, g=.35, dur=.07){
+  const o = ac.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t+dur);
+  const gn = ac.createGain(); gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0008, t+dur);
+  o.connect(gn).connect(master); o.start(t); o.stop(t+dur+.02);
+}
+function sndKey(kind){
+  if(!S.sound || !audio()) return;
+  const t = ac.currentTime + .002, r = Math.random();
+  if(kind === 'space'){ burst(t,{f:900+r*300,q:.8,g:.45,dur:.05}); thump(t,110,45,.4,.09); return; }
+  if(kind === 'soft'){ burst(t,{f:1500+r*500,q:1,g:.22,dur:.03}); return; }
+  burst(t,{f:2000+r*1800,q:1.4,g:.55,dur:.03+r*.015});   // type bar strike
+  thump(t,140+r*40,55,.3,.06);                             // platen thud
+  burst(t+.018+r*.01,{f:4200,q:3,g:.12,dur:.02});           // key return click
+}
+function sndBell(){
+  if(!S.sound || !S.bell || !audio()) return;
+  const t = ac.currentTime + .01;
+  [[2093,.22,1.6],[2093*2.76,.07,.9],[2093*5.4,.035,.5],[2093*.5,.04,1.2]].forEach(([f,g,d]) => {
+    const o = ac.createOscillator(); o.type='sine'; o.frequency.value = f;
+    const gn = ac.createGain(); gn.gain.setValueAtTime(0,t); gn.gain.linearRampToValueAtTime(g,t+.004); gn.gain.exponentialRampToValueAtTime(.0005,t+d);
+    o.connect(gn).connect(master); o.start(t); o.stop(t+d+.05);
+  });
+}
+function sndReturn(){
+  if(!S.sound || !audio()) return;
+  const t = ac.currentTime + .005;
+  thump(t, 220, 90, .25, .05);
+  for(let i=0;i<4;i++) burst(t + .03 + i*.028, {f:3200,q:4,g:.2,dur:.015});           // ratchet (line feed)
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;                               // carriage slide
+  const fl = ac.createBiquadFilter(); fl.type='bandpass'; fl.Q.value=.9;
+  fl.frequency.setValueAtTime(500,t+.14); fl.frequency.exponentialRampToValueAtTime(2600,t+.42);
+  const gn = ac.createGain(); gn.gain.setValueAtTime(0,t+.14); gn.gain.linearRampToValueAtTime(.18,t+.22); gn.gain.linearRampToValueAtTime(.0005,t+.44);
+  s.connect(fl).connect(gn).connect(master); s.start(t+.14); s.stop(t+.46);
+  thump(t+.44, 120, 40, .5, .12); burst(t+.44,{f:1200,q:1,g:.35,dur:.06});            // clunk at the stop
+}
+
+/* ---------------- rendering & layout ---------------- */
+let lastLineTop = -1, bellRung = false;
+function paint(){
+  const t = cur().text;
+  const p = S.noBackspace ? t.length : Math.min(ta.selectionEnd, t.length);
+  textNode.nodeValue = t.slice(0, p); afterNode.nodeValue = t.slice(p);
+  if(!t){ if(!hint.isConnected) textEl.append(hint); } else if(hint.isConnected) hint.remove();
+}
+function render(){ paint(); layout(); updateHud(); }
+function layout(){
+  const lh = parseFloat(getComputedStyle(textEl).lineHeight) || 30;
+  const anchor = Math.round(innerHeight * .42);
+  const cTop = caret.offsetTop, cLeft = caret.offsetLeft;
+  page.style.transform = `translate(-50%, ${anchor - cTop}px)`;
+  const x = (innerWidth - page.offsetWidth) / 2 + cLeft;
+  root.style.setProperty('--lx', x + 'px');
+  root.style.setProperty('--ly', (anchor + lh*.5) + 'px');
+  $('#guide').style.top = (anchor + lh*.92) + 'px';
+  const pill = $('#pill'); pill.style.left = x + 'px'; pill.style.top = (anchor + lh*.92 - 4) + 'px';
+  ta.style.left = Math.min(x, innerWidth - 4) + 'px'; ta.style.top = anchor + 'px';
+  return {ratio: page.offsetWidth ? cLeft / page.offsetWidth : 0, top: cTop};
+}
+addEventListener('resize', () => layout());
+
+/* ---------------- typing ---------------- */
+const pinEnd = () => { if(!S.noBackspace) return; const L = ta.value.length; if(ta.selectionStart !== L || ta.selectionEnd !== L) ta.setSelectionRange(L, L); };
+let focusedOnce = false;
+function focusPage(){ ta.focus({preventScroll:true}); if(!focusedOnce){ focusedOnce = true; const L = ta.value.length; ta.setSelectionRange(L, L); } pinEnd(); }
+$('#room').addEventListener('mousedown', e => { e.preventDefault(); closePanels(); focusPage(); });
+$('#room').addEventListener('touchend', () => { closePanels(); focusPage(); });
+['select','focus','mouseup','keyup'].forEach(ev => ta.addEventListener(ev, pinEnd));
+let lastSel = -1;
+document.addEventListener('selectionchange', () => {
+  if(document.activeElement !== ta) return;
+  pinEnd();
+  if(!S.noBackspace && ta.selectionEnd !== lastSel){ lastSel = ta.selectionEnd; paint(); layout(); }
+});
+
+const BLOCK_KEYS = new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown']);
+ta.addEventListener('keydown', e => {
+  if(S.noBackspace && BLOCK_KEYS.has(e.key)){ e.preventDefault(); return; }
+  if(!S.noBackspace && BLOCK_KEYS.has(e.key) && e.shiftKey){ e.preventDefault(); return; } // no invisible selections
+  if((e.ctrlKey || e.metaKey) && ['a','x'].includes(e.key.toLowerCase())){ e.preventDefault(); return; }
+  if(S.noBackspace && (e.ctrlKey || e.metaKey) && ['z','y'].includes(e.key.toLowerCase())){ e.preventDefault(); return; }
+  if(e.key === 'Tab'){ e.preventDefault(); return; }
+  if(e.key === 'Escape'){ e.preventDefault(); document.body.classList.toggle('typing'); return; }
+  if(S.noBackspace && (e.key === 'Backspace' || e.key === 'Delete')){ e.preventDefault(); sndKey('soft'); return; }
+});
+ta.addEventListener('beforeinput', e => {
+  const t = e.inputType || '';
+  if(S.noBackspace){
+    if(t.startsWith('history') || t.startsWith('delete')){ e.preventDefault(); return; }
+    const L = ta.value.length;
+    if(ta.selectionStart !== L || ta.selectionEnd !== L){ e.preventDefault(); pinEnd(); }
+  } else if(ta.selectionStart !== ta.selectionEnd && !t.startsWith('history')){
+    e.preventDefault(); ta.setSelectionRange(ta.selectionEnd, ta.selectionEnd);
+  }
+});
+ta.addEventListener('cut', e => e.preventDefault());
+
+ta.addEventListener('input', e => {
+  const n = cur();
+  const before = countWords(n.text);
+  n.text = ta.value; n.updated = Date.now();
+  const delta = countWords(n.text) - before;
+  if(delta > 0){ D.daily[today()] = (D.daily[today()] || 0) + delta; }
+  saveData();
+  lastSel = ta.selectionEnd;
+  paint();
+  const {ratio, top} = layout();
+  const t = e.inputType || '', data = e.data || '';
+  const isReturn = t === 'insertLineBreak' || t === 'insertParagraph' || (t === 'insertText' && data === '\n');
+  if(top !== lastLineTop){ lastLineTop = top; bellRung = false; }
+  if(isReturn) sndReturn();
+  else if(t.startsWith('delete')) sndKey('soft');
+  else if(t === 'insertText' || t === 'insertCompositionText' || t === 'insertReplacementText'){
+    sndKey(data === ' ' ? 'space' : 'key');
+    if(ratio > .86 && !bellRung){ bellRung = true; setTimeout(sndBell, 40); }
+  }
+  updateHud();
+  document.body.classList.add('typing');
+  closePanels(true);
+});
+
+/* fade menu back in on real mouse movement */
+let mx = null, my = null;
+addEventListener('mousemove', e => {
+  if(mx !== null && Math.hypot(e.clientX - mx, e.clientY - my) > 6) document.body.classList.remove('typing');
+  mx = e.clientX; my = e.clientY;
+});
+addEventListener('touchstart', e => { if(!e.target.closest('#room')) document.body.classList.remove('typing'); }, {passive:true});
+
+/* ---------------- HUD ---------------- */
+function updateHud(){
+  const n = cur(), w = countWords(n.text);
+  $('#hudL').textContent = folderOf(n).name + ' / ' + n.title;
+  let r = fmt(w) + (w === 1 ? ' word' : ' words');
+  if(sprint.running){
+    const left = Math.max(0, sprint.end - Date.now()), m = Math.floor(left/60000), s = Math.floor(left/1000)%60;
+    const done = Math.max(0, w - sprint.startWords);
+    r = `+${fmt(done)}${sprint.goal ? ' / ' + fmt(sprint.goal) : ''} · ${m}:${String(s).padStart(2,'0')} · ` + r;
+  }
+  $('#hudR').textContent = r;
+}
+$('#hudL').addEventListener('click', () => openPanel('pLib'));
+
+function toast(msg, ms=2800){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms); }
+
+/* ---------------- panels ---------------- */
+let openId = null;
+function openPanel(id){
+  document.body.classList.remove('typing');
+  if(openId === id){ closePanels(); return; }
+  closePanels(true);
+  openId = id; $('#' + id).classList.add('open');
+  document.querySelector(`#menu [data-panel="${id}"]`).classList.add('on');
+  if(id === 'pLib') renderLib();
+  if(id === 'pSprint') renderSprint();
+}
+function closePanels(keepFocus){
+  document.querySelectorAll('.panel.open').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('#menu button.on').forEach(b => b.classList.remove('on'));
+  openId = null;
+  if(!keepFocus) focusPage();
+}
+document.querySelectorAll('#menu button[data-panel]').forEach(b => b.addEventListener('click', () => openPanel(b.dataset.panel)));
+
+/* ---------------- Page / Lamp settings ---------------- */
+function hexToRgb(h){ const v = parseInt(h.slice(1),16); return [v>>16&255, v>>8&255, v&255]; }
+function applySettings(){
+  const p = PAPERS.find(x => x.id === S.paper) || PAPERS[0];
+  const ink = INKS.find(x => x.id === S.ink) || INKS[0];
+  root.style.setProperty('--paper', p.bg);
+  root.style.setProperty('--ink', ink.c);
+  root.style.setProperty('--font', (FONTS.find(f => f[0] === S.font) || FONTS[0])[1]);
+  root.style.setProperty('--size', S.size + 'px');
+  const w = S.warmth/100, cool = [214,228,255], warm = [255,196,122];
+  root.style.setProperty('--lamp', cool.map((c,i) => Math.round(c + (warm[i]-c)*w)).join(','));
+  root.style.setProperty('--glow', (S.glow/100 * (p.dark ? .5 : .75)).toFixed(3));
+  root.style.setProperty('--lr', S.lampSize + 'px');
+  root.style.setProperty('--shade', (S.dark/100 * .92).toFixed(3));
+  $('#glowAdd').style.opacity = p.dark ? .25 : (S.glow/100);
+  document.body.classList.toggle('noguide', !S.guide);
+  $('#allInBtn').classList.toggle('active', !!S.noBackspace);
+  $('#allInBtn').textContent = S.noBackspace ? 'All In ●' : 'All In ○';
+  $('#noBack').checked = !!S.noBackspace;
+  pinEnd();
+  renderSwatches();
+  saveSettings();
+  requestAnimationFrame(() => { if(cur()) paint(); layout(); });
+}
+$('#allInBtn').addEventListener('click', () => {
+  S.noBackspace = !S.noBackspace; applySettings();
+  toast(S.noBackspace ? 'All In: no backspace, no going back.' : 'All In off: backspace, undo and arrow keys work.');
+  focusPage();
+});
+function renderSwatches(){
+  $('#papers').innerHTML = PAPERS.map(p => `<button class="sw ${p.id===S.paper?'on':''}" data-paper="${p.id}" style="background:${p.bg}" title="${p.name}"><span>${p.name}</span></button>`).join('');
+  $('#inks').innerHTML = INKS.map(i => `<button class="sw ${i.id===S.ink?'on':''}" data-ink="${i.id}" style="background:${i.c}" title="${i.name}"><span>${i.name}</span></button>`).join('');
+}
+$('#papers').addEventListener('click', e => {
+  const b = e.target.closest('[data-paper]'); if(!b) return;
+  const p = PAPERS.find(x => x.id === b.dataset.paper);
+  const ink = INKS.find(x => x.id === S.ink);
+  S.paper = p.id;
+  // keep ink readable when switching between light and dark paper
+  const lum = c => { const [r,g,bl] = hexToRgb(c); return (r*299+g*587+bl*114)/1000; };
+  if(Math.abs(lum(p.bg) - lum(ink.c)) < 90) S.ink = p.dark ? 'chalk' : 'carbon';
+  applySettings();
+});
+$('#inks').addEventListener('click', e => { const b = e.target.closest('[data-ink]'); if(!b) return; S.ink = b.dataset.ink; applySettings(); });
+$('#font').innerHTML = FONTS.map(f => `<option style="font-family:${f[1].replace(/"/g,'')}">${f[0]}</option>`).join('');
+const bind = (id, key, type='range') => {
+  const el = $('#' + id);
+  if(type === 'check'){ el.checked = !!S[key]; el.addEventListener('change', () => { S[key] = el.checked; applySettings(); }); }
+  else if(type === 'select'){ el.value = S[key]; el.addEventListener('change', () => { S[key] = el.value; applySettings(); }); }
+  else { el.value = S[key]; el.addEventListener('input', () => { S[key] = +el.value; applySettings(); }); }
+};
+bind('font','font','select'); bind('size','size'); bind('noBack','noBackspace','check'); bind('guideOn','guide','check');
+bind('warmth','warmth'); bind('glow','glow'); bind('lampSize','lampSize'); bind('dark','dark');
+bind('soundOn','sound','check'); bind('bellOn','bell','check'); bind('vol','vol');
+$('#testSound').addEventListener('click', () => { sndKey(); setTimeout(()=>sndKey(),110); setTimeout(()=>sndKey('space'),220); setTimeout(sndBell,420); setTimeout(sndReturn,1200); });
+
+/* ---------------- Sprint ---------------- */
+const sprint = {running:false, start:0, end:0, startWords:0, goal:0, timer:0};
+const DURS = [5, 10, 15, 25, 45, 60];
+function renderSprint(){
+  $('#durs').innerHTML = DURS.map(m => `<button class="chip ${m===S.sprintMin?'on':''}" data-min="${m}" ${sprint.running?'disabled':''}>${m} min</button>`).join('');
+  $('#sprintBtn').textContent = sprint.running ? 'Stop sprint' : 'Start sprint';
+  $('#sprintInfo').textContent = sprint.running ? 'Running… just type.' : '';
+}
+$('#durs').addEventListener('click', e => { const b = e.target.closest('[data-min]'); if(!b || sprint.running) return; S.sprintMin = +b.dataset.min; saveSettings(); renderSprint(); });
+$('#sprintBtn').addEventListener('click', () => {
+  if(sprint.running){ finishSprint(true); return; }
+  Object.assign(sprint, {running:true, start:Date.now(), end:Date.now() + S.sprintMin*60000, startWords:countWords(cur().text), goal:+$('#goal').value || 0});
+  sprint.timer = setInterval(tickSprint, 500); tickSprint();
+  closePanels(); document.body.classList.add('typing'); toast(`Sprint started: ${S.sprintMin} minutes`);
+});
+function tickSprint(){
+  const p = Math.min(1, (Date.now() - sprint.start) / (sprint.end - sprint.start));
+  $('#hair').style.width = (p*100) + '%';
+  updateHud();
+  if(p >= 1) finishSprint(false);
+}
+function finishSprint(stopped){
+  clearInterval(sprint.timer); sprint.running = false;
+  const done = Math.max(0, countWords(cur().text) - sprint.startWords);
+  $('#hair').style.width = '0';
+  if(!stopped){ sndBell(); setTimeout(sndBell, 700); }
+  toast(`${stopped ? 'Sprint stopped' : 'Sprint complete'}: ${fmt(done)} words` + (sprint.goal ? (done >= sprint.goal ? '. Goal reached!' : ` of ${fmt(sprint.goal)}`) : ''), 6000);
+  updateHud(); if(openId === 'pSprint') renderSprint();
+}
+
+/* ---------------- Library ---------------- */
+function openNote(id){
+  D.currentId = id; store(LS_DATA, D);
+  ta.value = cur().text; lastLineTop = -1;
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  render();
+  $('#noteTitle').value = cur().title;
+}
+function renderLib(){
+  const n = cur();
+  if(document.activeElement !== $('#noteTitle')) $('#noteTitle').value = n.title;
+  const total = D.notes.reduce((a, x) => a + countWords(x.text), 0);
+  $('#libStats').innerHTML = `<span>${D.notes.length} page${D.notes.length===1?'':'s'} · ${fmt(total)} words total</span><span>Today: ${fmt(D.daily[today()]||0)} words</span>`;
+  const q = $('#libSearch').value.trim().toLowerCase();
+  const folders = [...D.folders].sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}));
+  const opts = sel => folders.map(f => `<option value="${f.id}" ${f.id===sel?'selected':''}>${esc(f.name)}</option>`).join('');
+  $('#libList').innerHTML = folders.map(f => {
+    let notes = D.notes.filter(x => x.folderId === f.id);
+    const fWords = notes.reduce((a, x) => a + countWords(x.text), 0);
+    if(q) notes = notes.filter(x => x.title.toLowerCase().includes(q) || x.text.toLowerCase().includes(q));
+    if(q && !notes.length) return '';
+    notes.sort((a,b) => b.updated - a.updated);
+    const closed = !q && S.collapsed.includes(f.id);
+    return `<div class="folder ${closed?'closed':''}">
+      <div class="fhead">
+        <button class="fname" data-act="toggle" data-id="${f.id}">${closed?'▸':'▾'} ${esc(f.name)} <small>· ${notes.length} · ${fmt(fWords)}w</small></button>
+        <button class="ico" data-act="addNote" data-id="${f.id}" title="New page in this folder">+</button>
+        <button class="ico" data-act="renameFolder" data-id="${f.id}" title="Rename folder">✎</button>
+        <button class="ico" data-act="delFolder" data-id="${f.id}" title="Delete folder">✕</button>
+      </div>
+      <ul>${notes.length ? notes.map(x => `<li class="note ${x.id===n.id?'cur':''}">
+          <button class="nt" data-act="open" data-id="${x.id}"><b>${esc(x.title)}</b><small>${fmt(countWords(x.text))} words · ${shortDate(x.updated)}</small></button>
+          <select data-act="move" data-id="${x.id}" title="Move to folder">${opts(x.folderId)}</select>
+          <button class="ico" data-act="delNote" data-id="${x.id}" title="Delete page">✕</button>
+        </li>`).join('') : '<li class="empty">Empty folder</li>'}</ul>
+    </div>`;
+  }).join('') || '<p class="empty">Nothing matches.</p>';
+}
+$('#libSearch').addEventListener('input', renderLib);
+$('#noteTitle').addEventListener('input', e => {
+  const n = cur(); n.title = e.target.value.trim() || 'Untitled'; n.updated = Date.now(); saveData(); updateHud();
+  clearTimeout(renderLib._t); renderLib._t = setTimeout(renderLib, 400);
+});
+$('#noteTitle').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); closePanels(); } });
+
+function askName(msg, def){
+  const v = prompt(msg, def || '');
+  if(v === null) return null;
+  const name = v.trim();
+  if(!name){ toast('A name can\'t be empty.'); return null; }
+  return name.slice(0, 80);
+}
+$('#pLib').addEventListener('change', e => {
+  const s = e.target.closest('select[data-act="move"]'); if(!s) return;
+  const n = D.notes.find(x => x.id === s.dataset.id); n.folderId = s.value; n.updated = Date.now(); saveData(true);
+  toast(`Moved to ${folderOf(n).name}`); renderLib(); updateHud();
+});
+$('#pLib').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if(!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if(act === 'newNote'){ const n = makeNote(folderOf(cur()).id); D.notes.push(n); openNote(n.id); renderLib(); $('#noteTitle').focus(); $('#noteTitle').select(); }
+  else if(act === 'addNote'){ const n = makeNote(id); D.notes.push(n); S.collapsed = S.collapsed.filter(x => x !== id); saveSettings(); openNote(n.id); renderLib(); $('#noteTitle').focus(); $('#noteTitle').select(); }
+  else if(act === 'newFolder'){
+    const name = askName('Name the new folder:'); if(!name) return;
+    if(D.folders.some(f => f.name.toLowerCase() === name.toLowerCase())){ toast('A folder with that name already exists.'); return; }
+    D.folders.push({id:uid(), name, updated:Date.now()}); saveData(true); renderLib();
+  }
+  else if(act === 'renameFolder'){
+    const f = D.folders.find(x => x.id === id); const name = askName('Rename folder:', f.name); if(!name) return;
+    if(D.folders.some(x => x.id !== id && x.name.toLowerCase() === name.toLowerCase())){ toast('A folder with that name already exists.'); return; }
+    f.name = name; f.updated = Date.now(); saveData(true); renderLib(); updateHud();
+  }
+  else if(act === 'delFolder'){
+    const f = D.folders.find(x => x.id === id);
+    const notes = D.notes.filter(x => x.folderId === id);
+    if(D.folders.length === 1){ toast('You need at least one folder. Rename this one instead.'); return; }
+    if(!confirm(notes.length ? `Delete folder "${f.name}"? Its ${notes.length} page(s) will move to "Unfiled".` : `Delete empty folder "${f.name}"?`)) return;
+    D.folders = D.folders.filter(x => x.id !== id); D.deleted[id] = Date.now();
+    if(notes.length){
+      let un = D.folders.find(x => x.name === 'Unfiled');
+      if(!un){ un = {id:uid(), name:'Unfiled', updated:Date.now()}; D.folders.push(un); }
+      notes.forEach(n => { n.folderId = un.id; n.updated = Date.now(); });
+    }
+    saveData(true); renderLib(); updateHud();
+  }
+  else if(act === 'toggle'){
+    S.collapsed = S.collapsed.includes(id) ? S.collapsed.filter(x => x !== id) : [...S.collapsed, id];
+    saveSettings(); renderLib();
+  }
+  else if(act === 'open'){ openNote(id); renderLib(); }
+  else if(act === 'delNote'){
+    const n = D.notes.find(x => x.id === id);
+    if(!confirm(`Delete "${n.title}" (${fmt(countWords(n.text))} words)? This can't be undone.`)) return;
+    D.notes = D.notes.filter(x => x.id !== id); D.deleted[id] = Date.now();
+    if(!D.notes.length) D.notes.push(makeNote(n.folderId));
+    if(D.currentId === id) openNote([...D.notes].sort((a,b) => b.updated - a.updated)[0].id);
+    saveData(true); renderLib();
+  }
+});
+
+/* ---------------- Keep / export ---------------- */
+const safeName = s => (s || 'page').replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 60) || 'page';
+function download(name, blob){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$('#exTxt').addEventListener('click', () => { const n = cur(); download(safeName(n.title) + '.txt', new Blob([n.text], {type:'text/plain'})); });
+$('#exMd').addEventListener('click', () => { const n = cur(); download(safeName(n.title) + '.md', new Blob([`# ${n.title}\n\n${n.text}\n`], {type:'text/markdown'})); });
+$('#exPdf').addEventListener('click', () => {
+  const n = cur(); $('#print').innerHTML = `<h1>${esc(n.title)}</h1>${esc(n.text)}`;
+  const old = document.title; document.title = n.title; closePanels(true);
+  setTimeout(() => { window.print(); document.title = old; }, 50);
+});
+function wrapCols(text, cols){
+  const out = [];
+  text.split('\n').forEach(par => {
+    if(!par){ out.push(''); return; }
+    let line = '';
+    par.split(/(\s+)/).forEach(tok => {
+      if(!tok) return;
+      while(tok.length > cols){ if(line){ out.push(line); line = ''; } out.push(tok.slice(0, cols)); tok = tok.slice(cols); }
+      if((line + tok).length > cols){ out.push(line.replace(/\s+$/, '')); line = /^\s+$/.test(tok) ? '' : tok; }
+      else line += tok;
+    });
+    out.push(line);
+  });
+  return out;
+}
+$('#exPng').addEventListener('click', async () => {
+  const n = cur();
+  try { await document.fonts.ready; } catch(e){}
+  const fontFam = (FONTS.find(f => f[0] === S.font) || FONTS[0])[1];
+  const fs = 26, lh = fs * 1.7, cols = 62, margin = 110, scale = 2;
+  const c = document.createElement('canvas'), x = c.getContext('2d');
+  x.font = `${fs}px ${fontFam}`;
+  const cw = x.measureText('M').width;
+  let lines = wrapCols(n.text || ' ', cols);
+  const MAX = 380; let cut = false;
+  if(lines.length > MAX){ lines = lines.slice(0, MAX); cut = true; }
+  const W = Math.ceil(cols*cw + margin*2), H = Math.ceil(margin*2 + lh*(lines.length + 2.2) + (cut ? lh : 0));
+  c.width = W*scale; c.height = H*scale; x.scale(scale, scale);
+  const paper = PAPERS.find(p => p.id === S.paper) || PAPERS[0], ink = (INKS.find(i => i.id === S.ink) || INKS[0]).c;
+  x.fillStyle = paper.bg; x.fillRect(0, 0, W, H);
+  // paper grain
+  for(let i=0;i<W*H/60;i++){ x.fillStyle = `rgba(${paper.dark?'255,255,255':'0,0,0'},${Math.random()*.035})`; x.fillRect(Math.random()*W, Math.random()*H, 1, 1); }
+  const typeLine = (str, y, bold) => {
+    x.font = `${bold?'700 ':''}${fs}px ${fontFam}`; x.fillStyle = ink; x.textBaseline = 'alphabetic';
+    for(let i=0;i<str.length;i++){
+      if(str[i] === ' ') continue;
+      x.globalAlpha = .72 + Math.random()*.28;
+      x.fillText(str[i], margin + i*cw + (Math.random()-.5)*.6, y + (Math.random()-.5)*1.1);
+    }
+    x.globalAlpha = 1;
+  };
+  let y = margin + fs;
+  typeLine(n.title.slice(0, cols), y, true); y += lh*2.2;
+  lines.forEach(l => { typeLine(l, y); y += lh; });
+  if(cut) typeLine('[ ... continued ]', y);
+  c.toBlob(b => { download(safeName(n.title) + '.png', b); toast(cut ? 'PNG saved (first pages only; it was very long).' : 'PNG saved'); }, 'image/png');
+});
+$('#backup').addEventListener('click', () => {
+  store(LS_DATA, D);
+  download(`lamplight-backup-${today()}.json`, new Blob([JSON.stringify({app:'lamplight', version:1, exported:Date.now(), data:D, settings:S}, null, 1)], {type:'application/json'}));
+});
+$('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
+$('#restoreFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  try {
+    const j = JSON.parse(await f.text()); const d = j.data || j;
+    if(!Array.isArray(d.folders) || !Array.isArray(d.notes)) throw new Error('bad');
+    if(!confirm(`Restore ${d.notes.length} pages in ${d.folders.length} folders? This replaces everything currently in Lamplight.`)) return;
+    // bump timestamps so the restored pages win over older synced copies
+    const now = Date.now(); d.notes.forEach(n => n.updated = Math.max(n.updated || 0, now)); d.folders.forEach(f => f.updated = now);
+    D = d; D.deleted = {}; repairData();
+    saveData(true); openNote(D.currentId); renderLib(); toast('Backup restored');
+  } catch(err){ toast('That file isn\'t a Lamplight backup.'); }
+});
+
+/* ---------------- Sync (free: a secret GitHub gist) ---------------- */
+const LS_SYNC = 'lamplight.sync.v1', GIST_FILE = 'lamplight.json', GIST_DESC = 'Lamplight sync';
+const SY = Object.assign({token:'', gistId:'', last:0}, load(LS_SYNC, {}));
+let syncing = false, dirty = false, syncT = 0;
+function markDirty(){ dirty = true; if(SY.gistId){ clearTimeout(syncT); syncT = setTimeout(() => syncNow(), 6000); } }
+async function gh(path, opts = {}){
+  const r = await fetch('https://api.github.com' + path, Object.assign({}, opts, {cache:'no-store', headers:Object.assign(
+    {Authorization:'Bearer ' + SY.token, Accept:'application/vnd.github+json'}, opts.body ? {'Content-Type':'application/json'} : {})}));
+  if(!r.ok){ const e = new Error('GitHub ' + r.status); e.status = r.status; throw e; }
+  return r.status === 204 ? null : r.json();
+}
+const byId = (a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+function payload(){ return {app:'lamplight', v:1, folders:[...D.folders].sort(byId), notes:[...D.notes].sort(byId), deleted:D.deleted, daily:D.daily}; }
+function mergeList(a, b, del){
+  const m = new Map();
+  [...a, ...b].forEach(x => { const o = m.get(x.id); if(!o || (x.updated || 0) > (o.updated || 0)) m.set(x.id, x); });
+  return [...m.values()].filter(x => !(del[x.id] && del[x.id] >= (x.updated || 0))).sort(byId);
+}
+function mergeIn(r){
+  const del = Object.assign({}, r.deleted || {});
+  Object.entries(D.deleted).forEach(([k, v]) => { del[k] = Math.max(del[k] || 0, v); });
+  D.deleted = del;
+  D.folders = mergeList(D.folders, r.folders || [], del);
+  D.notes = mergeList(D.notes, r.notes || [], del);
+  Object.entries(r.daily || {}).forEach(([k, v]) => { D.daily[k] = Math.max(D.daily[k] || 0, v); });
+}
+async function readRemote(){
+  const g = await gh('/gists/' + SY.gistId);
+  const f = g.files && g.files[GIST_FILE]; if(!f) return null;
+  const txt = f.truncated ? await (await fetch(f.raw_url, {cache:'no-store'})).text() : f.content;
+  try { return JSON.parse(txt); } catch(e){ return null; }
+}
+function setSyncStatus(msg, err){ const s = $('#syncStatus'); s.textContent = msg; s.classList.toggle('err', !!err); }
+function renderSyncUi(){
+  $('#syncSetup').hidden = !!SY.gistId; $('#syncOn').hidden = !SY.gistId;
+  if(SY.gistId && SY.last) setSyncStatus('Synced at ' + new Date(SY.last).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}));
+}
+async function syncNow(manual){
+  if(!SY.token || !SY.gistId) return;
+  if(syncing){ if(manual) toast('Already syncing…'); return; }
+  syncing = true; setSyncStatus('Syncing…');
+  const c0 = cur(), curText = c0 ? c0.text : null, curId = D.currentId;
+  try {
+    const remote = await readRemote();
+    const remoteStr = remote ? JSON.stringify({app:'lamplight', v:1, folders:[...(remote.folders||[])].sort(byId), notes:[...(remote.notes||[])].sort(byId), deleted:remote.deleted||{}, daily:remote.daily||{}}) : '';
+    const wasDirty = dirty; dirty = false;
+    if(remote) mergeIn(remote);
+    repairData();
+    const merged = JSON.stringify(payload());
+    if(merged !== remoteStr || wasDirty){
+      await gh('/gists/' + SY.gistId, {method:'PATCH', body:JSON.stringify({files:{[GIST_FILE]:{content:merged}}})});
+    }
+    store(LS_DATA, D);
+    // refresh the screen if something changed elsewhere
+    if(D.currentId !== curId || cur().text !== curText){
+      if(cur().text !== ta.value){ ta.value = cur().text; ta.setSelectionRange(ta.value.length, ta.value.length); }
+      render();
+    } else updateHud();
+    if(openId === 'pLib') renderLib();
+    SY.last = Date.now(); store(LS_SYNC, SY); renderSyncUi();
+    if(manual) toast('Synced');
+  } catch(e){
+    dirty = true;
+    if(e.status === 401){ setSyncStatus('GitHub rejected the token. Disconnect and paste a new one.', true); }
+    else if(e.status === 404){ setSyncStatus('Sync file not found. Disconnect and connect again.', true); }
+    else setSyncStatus('Offline: will sync when you\'re back online.', true);
+    if(manual) toast($('#syncStatus').textContent);
+  }
+  syncing = false;
+}
+$('#syncConnect').addEventListener('click', async () => {
+  const token = $('#tokenIn').value.trim(); if(!token){ toast('Paste your GitHub token first.'); return; }
+  SY.token = token; const btn = $('#syncConnect'); btn.disabled = true; btn.textContent = 'Connecting…';
+  try {
+    await gh('/user');
+    let found = null;
+    for(let p = 1; p <= 10 && !found; p++){
+      const list = await gh(`/gists?per_page=100&page=${p}`);
+      found = list.find(g => g.description === GIST_DESC && g.files && g.files[GIST_FILE]);
+      if(list.length < 100) break;
+    }
+    if(found){
+      SY.gistId = found.id;
+      // a fresh device with only empty starter pages: take the synced library as-is
+      if(D.notes.every(n => !n.text.trim())){ D.notes = []; D.folders = []; }
+    } else {
+      const g = await gh('/gists', {method:'POST', body:JSON.stringify({description:GIST_DESC, public:false, files:{[GIST_FILE]:{content:JSON.stringify(payload())}}})});
+      SY.gistId = g.id;
+    }
+    store(LS_SYNC, SY); $('#tokenIn').value = ''; renderSyncUi();
+    dirty = true; await syncNow();
+    if(!D.notes.find(n => n.id === D.currentId)) repairData();
+    openNote(D.currentId);
+    toast(found ? 'Connected: your synced pages are here.' : 'Connected: sync is on.');
+  } catch(e){
+    SY.token = ''; SY.gistId = ''; store(LS_SYNC, SY); renderSyncUi(); repairData();
+    toast(e.status === 401 ? 'That token didn\'t work. Check you copied all of it and ticked "gist".' : 'Couldn\'t reach GitHub. Check your connection.', 5000);
+  }
+  btn.disabled = false; btn.textContent = 'Connect';
+});
+$('#syncNowBtn').addEventListener('click', () => syncNow(true));
+$('#syncDisconnect').addEventListener('click', () => {
+  if(!confirm('Turn off sync on this device? Your pages stay here and in GitHub.')) return;
+  SY.token = ''; SY.gistId = ''; SY.last = 0; store(LS_SYNC, SY); renderSyncUi(); toast('Sync turned off on this device');
+});
+setInterval(() => { if(!document.hidden) syncNow(); }, 45000);
+document.addEventListener('visibilitychange', () => { syncNow(); });
+addEventListener('online', () => syncNow());
+$('#hudR').addEventListener('click', () => document.body.classList.remove('typing'));
+
+/* ---------------- boot ---------------- */
+renderSyncUi();
+applySettings();
+ta.value = cur().text;
+render();
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => layout());
+setTimeout(layout, 600);
+focusPage();
+syncNow();
+})();
+</script>
+</body>
+</html>
